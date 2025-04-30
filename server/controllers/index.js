@@ -3,6 +3,7 @@ const models = require('../models');
 
 // get the Cat model
 const { Cat } = models;
+const { Dog } = models;
 
 // Function to handle rendering the index page.
 const hostIndex = async (req, res) => {
@@ -283,6 +284,87 @@ const notFound = (req, res) => {
   });
 };
 
+const getDogName = async (req, res) => {
+  try{
+       const doc = await Dog.findOne({}).sort({'createdDate': 'descending'}).lean().exec();
+
+       if(doc) {
+         return res.json({name: doc.name});
+       }
+       return res.status(404).json({error: 'No dog found'});
+     } catch (err) {
+       console.log(err);
+       return res.status(500).json({error: 'Something went wrong contacting the database'});
+     }
+}
+   
+const setDogName = async (req, res) => {
+  if (!req.body.name || !req.body.breed || !req.body.age) {
+    // If they are missing data, send back an error.
+    return res.status(400).json({ error: 'name, breed, and age are all required' });
+  }
+   
+  const dogData = {
+    name: `${req.body.name}`,
+    breed: `${req.body.breed}`,
+    age: req.body.age,
+  };
+   
+  const newDog = new Dog(dogData);
+    try {
+      await newDog.save();
+      return res.status(201).json({
+         name: newDog.name,
+         breed: newDog.breed,
+         age: newDog.age,
+      });
+    } catch (err) {
+      console.log(err);
+      return res.status(500).json({ error: 'failed to create dog' });
+    }
+   };
+   
+   const searchDogName = async (req, res) => {
+     if (!req.query.name) {
+       return res.status(400).json({ error: 'Name is required to perform a search' });
+     }
+     let doc;
+     try {
+       doc = await Dog.findOne({ name: req.query.name }).exec();
+     } catch (err) {
+       // If there is an error, log it and send the user an error message.
+       console.log(err);
+       return res.status(500).json({ error: 'Something went wrong' });
+     }
+   
+     // If we do not find something that matches our search, doc will be empty.
+     if (!doc) {
+       return res.status(404).json({ error: 'No dogs found' });
+     }
+   
+     // Otherwise, we got a result and will send it back to the user.
+     return res.json({ name: doc.name, breed: doc.breed, age: doc.age });
+   };
+
+   const updateLastDog = (req, res) => {
+     const updatePromise = Dog.findOneAndUpdate({}, {$inc: {'age': 1}}, {
+       returnDocument: 'after', //Populates doc in the .then() with the version after update
+       sort: {'createdDate': 'descending'}
+     }).lean().exec();
+   
+     updatePromise.then((doc) => res.json({
+       name: doc.name,
+       breed: doc.breed,
+       age: doc.age,
+     }));
+   
+     // If something goes wrong saving to the database, log the error and send a message to the client.
+     updatePromise.catch((err) => {
+       console.log(err);
+       return res.status(500).json({ error: 'Something went wrong' });
+     });
+   };
+
 // export the relevant public controller functions
 module.exports = {
   index: hostIndex,
@@ -294,4 +376,8 @@ module.exports = {
   updateLast,
   searchName,
   notFound,
+  getDogName,
+  setDogName,
+  updateLastDog,
+  searchDogName,
 };
